@@ -1,0 +1,9 @@
+[package]
+name = "poke"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+bigdecimal = "0.4.6"
+quote = "1.0.37"
