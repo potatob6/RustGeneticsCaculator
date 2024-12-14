@@ -3,7 +3,7 @@ use std::{fmt::Debug, hint::assert_unchecked, ops::{Add, Mul}};
 use bigdecimal::{BigDecimal, FromPrimitive, Zero};
 
 #[derive(Clone)]
-pub struct Fraction(BigDecimal, BigDecimal);
+pub struct Fraction(pub BigDecimal, pub BigDecimal);
 
 impl Default for Fraction {
     fn default() -> Self {

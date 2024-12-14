@@ -1,5 +1,6 @@
-use std::{collections::HashSet, hint::assert_unchecked, vec};
+use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fmt::Display, fs::exists, hint::assert_unchecked, io::{self, stdin, stdout, Write}, process::{exit, id}, rc::Rc, sync::LazyLock, usize, vec};
 
+use bigdecimal::{BigDecimal, FromPrimitive};
 use fraction::Fraction;
 
 mod fraction;
@@ -49,10 +50,41 @@ fn get_score(pattern: &Gene) -> (usize, u8) {
 #[derive(Debug)]
 struct GeneGroup([Gene; 6], usize);
 
+impl Display for GeneGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        for i in 0..self.0.len() {
+            if self.0[i] == Gene::G {
+                s += &"G";
+                continue;
+            }
+            if self.0[i] == Gene::Y {
+                s += &"Y";
+                continue;
+            }
+            if self.0[i] == Gene::X {
+                s += &"X";
+                continue;
+            }
+            if self.0[i] == Gene::H {
+                s += &"H";
+                continue;
+            }
+            if self.0[i] == Gene::W {
+                s += &"W";
+                continue;
+            }
+        }
+        f.write_str(&s).expect("Error");
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 #[derive(Clone)]
 struct ComposeResult {
     sign: usize,
+    loss: RefCell<u8>,
     gene_group: GeneGroup,
     probability: Fraction,
     prev_gene_group: Vec<GeneGroup>,
@@ -101,6 +133,34 @@ impl GeneGroup {
 
         Some(s_result)
     }
+
+    #[inline]
+    fn display(&self) -> String {
+        let mut s = String::new();
+        for i in 0..6 {
+            if self.0[i] == Gene::X {
+                s.push('X');
+                continue;
+            }
+            if self.0[i] == Gene::Y {
+                s.push('Y');
+                continue;
+            }
+            if self.0[i] == Gene::G {
+                s.push('G');
+                continue;
+            }
+            if self.0[i] == Gene::H {
+                s.push('H');
+                continue;
+            }
+            if self.0[i] == Gene::W {
+                s.push('W');
+                continue;
+            }
+        }
+        s
+    }
 }
 
 impl Clone for GeneGroup {
@@ -145,8 +205,8 @@ fn compose(plants: Vec<GeneGroup>) -> Vec<ComposeResult> {
     let mut composes = Vec::<ComposeResult>::new();
     for k in expanded {
         let c = ComposeResult {
-            // SAFTY: Use static data with single thread is safe. No any data conflition.
             sign: 0,
+            loss: RefCell::new(u8::MAX),
             gene_group: k.0,
             probability: k.1,
             prev_gene_group: plants.clone(),
@@ -250,7 +310,7 @@ fn expand(sit: &[Vec<Gene>; 6]) -> Vec<(GeneGroup, Fraction)> {
 }
 
 /// Output is the added items for already_collection
-fn select2compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeResult>) -> Vec<ComposeResult> {
+fn select2compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeResult>, probability: &BigDecimal) -> Vec<ComposeResult> {
     // already_collection only for check repeat item
     let mut output = Vec::new();
     let l = exist_gene.len();
@@ -259,7 +319,7 @@ fn select2compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeR
             if i != j {
                 let v = cl! { exist_gene[i], exist_gene[j], };
                 let results = compose(v);
-                let mut added = vec_result_non_exists(&results, &output, &already_collection);
+                let mut added = vec_result_non_exists(&results, &output, &already_collection, probability);
                 output.append(&mut added);
             }
         }
@@ -268,7 +328,7 @@ fn select2compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeR
 }
 
 /// Output is the added items for already_collection
-fn select3compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeResult>) -> Vec<ComposeResult> {
+fn select3compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeResult>, probability: &BigDecimal) -> Vec<ComposeResult> {
     // already_collection only for check repeat item
     let mut output = Vec::new();
     let l = exist_gene.len();
@@ -278,7 +338,7 @@ fn select3compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeR
                 if !(i == j && i == k) {
                     let v = cl! { exist_gene[i], exist_gene[j], exist_gene[k], };
                     let results = compose(v);
-                    let mut added = vec_result_non_exists(&results, &output, &already_collection);
+                    let mut added = vec_result_non_exists(&results, &output, &already_collection, probability);
                     output.append(&mut added);
                 }
             }
@@ -288,7 +348,7 @@ fn select3compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeR
 }
 
 /// Output is the added items for already_collection
-fn select4compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeResult>) -> Vec<ComposeResult> {
+fn select4compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeResult>, probability: &BigDecimal) -> Vec<ComposeResult> {
     // already_collection only for check repeat item
     let mut output = Vec::new();
     let l = exist_gene.len();
@@ -299,7 +359,7 @@ fn select4compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeR
                     if !(i == j && i == k && i == z) {
                         let v = cl! { exist_gene[i], exist_gene[j], exist_gene[k], };
                         let results = compose(v);
-                        let mut added = vec_result_non_exists(&results, &output, &already_collection);
+                        let mut added = vec_result_non_exists(&results, &output, &already_collection, probability);
                         output.append(&mut added);
                     }
                 }
@@ -308,16 +368,34 @@ fn select4compose(exist_gene: &Vec<GeneGroup>, already_collection: &Vec<ComposeR
     }
     output
 }
-fn vec_result_non_exists(result: &Vec<ComposeResult>, v0: &Vec<ComposeResult>, v1: &Vec<ComposeResult>) -> Vec<ComposeResult> {
+fn vec_result_non_exists(result: &Vec<ComposeResult>, v0: &Vec<ComposeResult>, v1: &Vec<ComposeResult>, probability: &BigDecimal) -> Vec<ComposeResult> {
     let mut output = Vec::new();
     for r in result {
-        if !result_exists(r, v0) && !result_exists(r, v1) {
+        let probability_denominator = &r.probability.1;
+        if !result_exists(r, v0) && !result_exists(r, v1) && probability_denominator <= probability {
             output.push(r.clone());
         }
     }
     output
 }
 
+fn vec_result_non_selected(result: Vec<ComposeResult>, selected_collection: &Vec<ComposeResult>) -> Vec<ComposeResult> {
+    let mut output = Vec::new();
+    if selected_collection.len() == 0 {
+        return result;
+    }
+    'outter: for i in result {
+        for selected in selected_collection {
+            if i != *selected {
+                output.push(i);
+                continue 'outter;
+            }
+        }
+    }
+    output
+}
+
+#[inline]
 fn result_exists(result: &ComposeResult, v: &Vec<ComposeResult>) -> bool {
     let mut exists = false;
     for n in v {
@@ -328,22 +406,166 @@ fn result_exists(result: &ComposeResult, v: &Vec<ComposeResult>) -> bool {
     exists
 }
 
-fn one_step_compose_predict(exists_gene: &Vec<GeneGroup>, already_compose_collection: &Vec<ComposeResult>) -> Vec<ComposeResult> {
-    let mut a1 = select2compose(&exists_gene, &already_compose_collection);
-    let mut a2 = select3compose(&exists_gene, &already_compose_collection);
-    let mut a3 = select4compose(&exists_gene, &already_compose_collection);
+fn one_step_compose_predict<'a>(exists_gene: &Vec<GeneGroup>, already_compose_collection: &Vec<ComposeResult>, selected_collection: &Vec<ComposeResult>, probability: &BigDecimal) 
+    -> Vec<ComposeResult> {
+    let mut a1 = select2compose(&exists_gene, &already_compose_collection, probability);
+    let mut a2 = select3compose(&exists_gene, &already_compose_collection, probability);
+    let mut a3 = select4compose(&exists_gene, &already_compose_collection, probability);
 
-    let mut a2 = vec_result_non_exists(&a2, &a1, &already_compose_collection);
+
+    let mut a2 = vec_result_non_exists(&a2, &a1, &already_compose_collection, probability);
     a1.append(&mut a2);
-    let mut a3 = vec_result_non_exists(&a3, &a1, &already_compose_collection);
+    let mut a3 = vec_result_non_exists(&a3, &a1, &already_compose_collection, probability);
     a1.append(&mut a3);
+    a1 = vec_result_non_selected(a1, selected_collection);
+
     for j in &mut a1 {
         // SAFTY: Use static data with single thread is safe. No any data conflition.
         j.sign = unsafe { GLOBAL_SIGN };
         j.gene_group.1 = unsafe { GLOBAL_SIGN };
         unsafe { GLOBAL_SIGN += 1 };
     }
+
+    evaluate_loss(&mut a1);
     a1
+}
+
+fn evaluate_loss<'a>(compose_result: &'a mut Vec<ComposeResult>) {
+    let mut lowest_idx = 0;
+    let mut lowest_loss_score: Option<&'a ComposeResult> = None;
+    // SAFTY: Use static data with single thread is safe. No any data conflition.
+    if unsafe { &LOSS_MODE } == &LossMode::ACCURACY {
+        for idx in 0..compose_result.len() {
+            let mut loss_score = 0u8;
+            for j in 0..6 {
+                if compose_result[idx].gene_group.0[j] != unsafe { ACCURACY_TARGET }[j] {
+                    loss_score += 1;
+                }
+            }
+
+            {
+                *compose_result[idx].loss.borrow_mut() = loss_score;
+            }
+
+            match lowest_loss_score {
+                Some(prev) => {
+                    if loss_score < *prev.loss.borrow() {
+                        lowest_loss_score = Some(&compose_result[idx]);
+                        lowest_idx = idx;
+                    } else {
+                        lowest_loss_score = Some(prev);
+                    }
+                }
+                None => {
+                    lowest_loss_score = Some(&compose_result[idx]);
+                    lowest_idx = idx;
+                }
+            }
+        }
+
+        return;
+    } else if unsafe { &LOSS_MODE } == &LossMode::AMOUNT {
+        let mut lowest_loss_score: Option<&'a ComposeResult> = None;
+        for idx in 0..compose_result.len() {
+            let mut seperate_gene_amount = [0u8; 5];
+            let mut loss_score = 0u8;
+
+            for k in 0..6 {
+
+                let g = compose_result[idx].gene_group.0[k];
+
+                // Count Gene::G
+                if g == Gene::G {
+                    seperate_gene_amount[0] += 1;
+                    continue;
+                }
+
+                // Count Gene::H
+                if g == Gene::H {
+                    seperate_gene_amount[1] += 1;
+                    continue;
+                }
+
+                // Count Gene::Y
+                if g == Gene::Y {
+                    seperate_gene_amount[2] += 1;
+                    continue;
+                }
+
+                // Count Gene::W
+                if g == Gene::W {
+                    seperate_gene_amount[3] += 1;
+                    continue;
+                }
+
+                // Count Gene::X
+                if g == Gene::X {
+                    seperate_gene_amount[4] += 1;
+                    continue;
+                }
+            }
+
+            for k in 0..5 {
+                if seperate_gene_amount[k] >= unsafe { AMOUNT_TARGET }[k] {
+                    loss_score += seperate_gene_amount[k] - unsafe { AMOUNT_TARGET }[k];
+                } else {
+                    loss_score += unsafe { AMOUNT_TARGET }[k] - seperate_gene_amount[k];
+                }
+            }
+
+            { *compose_result[idx].loss.borrow_mut() = loss_score; }
+
+            match lowest_loss_score {
+                Some(prev) => {
+                    if loss_score < *prev.loss.borrow() {
+                        lowest_loss_score = Some(&compose_result[idx]);
+                        lowest_idx = idx;
+                    } else {
+                        lowest_loss_score = Some(prev);
+                    }
+                }
+                None => {
+                    lowest_loss_score = Some(&compose_result[idx]);
+                    lowest_idx = idx;
+                }
+            }
+        }
+        
+        
+        return;
+    }
+    panic!("Unknown Loss mode.");
+}
+
+fn predict(exist_gene: &mut Vec<GeneGroup>, composed_collection: &mut Vec<ComposeResult>, selected_collection: &mut Vec<ComposeResult>, probability: &BigDecimal) -> Option<ComposeResult> {
+    let mut generation = 1usize;
+    loop {
+        let mut added_compose: Vec<ComposeResult> = one_step_compose_predict(&exist_gene, &composed_collection, &selected_collection, probability);
+        composed_collection.append(&mut added_compose); 
+        if composed_collection.len() == 0 || exist_gene.len() > unsafe { SPEARD_LIMIT } {
+            return None;
+        }
+
+        unsafe { assert_unchecked((&composed_collection).len() > 0); }
+        // Find lowest loss
+        let mut lowest_loss: &ComposeResult = &composed_collection[0];
+        let mut lowest_idx = 0usize;
+        for k in 0..composed_collection.len() {
+            if *(&composed_collection[k]).loss.borrow() < *lowest_loss.loss.borrow() {
+                lowest_loss = &composed_collection[k];
+                lowest_idx = k;
+            }
+        }
+
+        if *lowest_loss.loss.borrow() != 0 {
+            exist_gene.push(lowest_loss.gene_group.clone());
+            selected_collection.push(lowest_loss.clone());
+            composed_collection.remove(lowest_idx);
+        } else {
+            return Some(lowest_loss.clone());
+        }
+    }
+    generation += 1;
 }
 
 macro_rules! genes {
@@ -352,15 +574,390 @@ macro_rules! genes {
     };
 }
 
+#[repr(u8)]
+#[derive(PartialEq)]
+enum LossMode {
+    ACCURACY,
+    AMOUNT,
+}
 
-fn main() {
-    let genes_vec = genes! { "WGYXYW", "XYYGYG", "XGWYGY", "XYWWGY", "GYYHWX", "XYYXYX", };
-    let already_compose_collection = Vec::new();
+static mut LOSS_MODE: LossMode = LossMode::AMOUNT;
+static mut ACCURACY_TARGET: [Gene; 6] = [Gene::G; 6];
 
-    let output = one_step_compose_predict(&genes_vec, &already_compose_collection);
+///
+///     (Gene::G, 5),
+///     (Gene::H, 5),
+///     (Gene::Y, 5),
+///     (Gene::W, 6),
+///     (Gene::X, 6),
+static mut AMOUNT_TARGET: [u8; 5] = [3, 0, 3, 0, 0];
+static mut SPEARD_LIMIT: usize = 30;
 
-    for j in &output {
-        println!("{:?} -> {:?} #{:?}", &j.gene_group, &j.probability, &j.sign);
+fn display_target() -> String {
+    let mut result = "".to_string();
+    if unsafe { AMOUNT_TARGET }[0] != 0 {
+        result += &format!("{}G", unsafe { AMOUNT_TARGET[0] });
+    }
+    if unsafe { AMOUNT_TARGET }[1] != 0 {
+        result += &format!("{}H", unsafe { AMOUNT_TARGET[0] });
+    }
+    if unsafe { AMOUNT_TARGET }[2] != 0 {
+        result += &format!("{}Y", unsafe { AMOUNT_TARGET[0] });
+    }
+    if unsafe { AMOUNT_TARGET }[3] != 0 {
+        result += &format!("{}W", unsafe { AMOUNT_TARGET[0] });
+    }
+    if unsafe { AMOUNT_TARGET }[4] != 0 {
+        result += &format!("{}X", unsafe { AMOUNT_TARGET[0] });
+    }
+    result
+}
+
+fn find_prev_compose_node(node: ComposeResult, selected_collection: &Vec<ComposeResult>) -> HashMap<usize, (ComposeResult, usize)> {
+    let mut v = HashMap::<usize, (ComposeResult, usize)>::new();
+    for k in node.prev_gene_group {
+        if k.1 != 0 {
+            if !v.contains_key(&k.1) {
+                // Find compose result
+                for c in selected_collection {
+                    if c.sign == k.1 {
+                        v.insert(k.1, (c.clone(), 1));
+                    }
+                }
+            } else {
+                unsafe { assert_unchecked(v.get(&k.1).is_some()); }
+                let g = v.get_mut(&k.1).unwrap();
+                g.1 += 1;
+            }
+        }
+    }
+    v
+}
+
+fn display_backtrace_path(result: ComposeResult, selected_compose: &Vec<ComposeResult>) -> String {
+
+    #[derive(Debug)]
+    struct BackTraceNode {
+        times: usize, 
+        node: ComposeResult,
     }
 
+    let mut output = String::new();
+    let mut tmp: Vec<Vec<BackTraceNode>> = vec![vec![ BackTraceNode { times: 1, node: result } ]];
+    let mut prev_idx = 0;
+
+    loop {
+        unsafe { assert_unchecked(tmp.len() >= 1); }
+        let mut new_trace_node = Vec::<BackTraceNode>::new();
+        let prev_ref = &tmp[prev_idx];
+
+        for k in prev_ref {
+            let compose_result = &k.node;
+            let count = &k.times;
+
+            let all_next_node = find_prev_compose_node(compose_result.clone(), selected_compose);
+            for j in all_next_node {
+                new_trace_node.push(BackTraceNode { times: count * j.1.1, node: j.1.0.clone() });
+            }
+        }
+
+        let l = new_trace_node.len();
+
+        if l != 0 {
+            tmp.push(new_trace_node);
+            prev_idx += 1;
+        }
+
+        if l == 0 {
+            break;
+        }
+    }
+
+    let mut step_count = 0usize;
+    for i in (0..tmp.len()).rev() {
+        if tmp[i].len() == 1 {
+            output += &format!("#{}  合成{}:  概率：1/{}\n", step_count + 1, &tmp[i][0].node.gene_group, tmp[i][0].node.probability.1);
+            for genes in &tmp[i][0].node.prev_gene_group {
+                output += &format!("    {}\n", genes);
+            }
+        } else {
+            for j in 0..tmp[i].len() {
+                output += &format!("#{}-{}  合成{}:  概率: 1/{}\n", step_count + 1, j + 1, &tmp[i][j].node.gene_group, tmp[i][j].node.probability.1);
+                for genes in &tmp[i][j].node.prev_gene_group {
+                    output += &format!("    {}\n", genes);
+                }
+            }
+        }
+
+        println!();
+        step_count += 1;
+
+    }
+
+    output
+}
+
+#[inline]
+fn add_gene(genes: &mut Vec<GeneGroup>) {
+    println!("输入添加基因：(例XYGXYM)");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("输入设备错误");
+    input = input.trim().to_string();
+    if input.len() != 6 {
+        println!("❌ 输入有误");
+        return;
+    }
+
+    let input = input.chars();
+    let mut idx = 0;
+    let mut g1 = [Gene::PLACEHOLDER; 6];
+    for chr in input {
+        if chr == 'X' {
+            g1[idx] = Gene::X;
+        }
+        if chr == 'Y' {
+            g1[idx] = Gene::Y;
+        }
+        if chr == 'G' {
+            g1[idx] = Gene::G;
+        }
+        if chr == 'H' {
+            g1[idx] = Gene::H;
+        }
+        if chr == 'W' {
+            g1[idx] = Gene::W;
+        }
+        idx += 1;
+    }
+
+    let g = GeneGroup(g1, 0);
+    for i in 0..genes.len() {
+        if g == genes[i] {
+            println!("❌ 基因已存在");
+            return;
+        }
+    }
+    genes.push(g);
+}
+
+#[inline]
+fn remove_gene(genes: &mut Vec<GeneGroup>) {
+    println!("输入删除基因：(例XYGXYM)");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("❌ 输入设备错误");
+    input = input.trim().to_string();
+    if input.len() != 6 {
+        println!("❌ 输入有误");
+    }
+
+    let input = input.chars();
+    let mut idx = 0;
+    let mut g1 = [Gene::PLACEHOLDER; 6];
+    for chr in input {
+        if chr == 'X' {
+            g1[idx] = Gene::X;
+        }
+        if chr == 'Y' {
+            g1[idx] = Gene::Y;
+        }
+        if chr == 'G' {
+            g1[idx] = Gene::G;
+        }
+        if chr == 'H' {
+            g1[idx] = Gene::H;
+        }
+        if chr == 'W' {
+            g1[idx] = Gene::W;
+        }
+        idx += 1;
+    }
+
+    let g = GeneGroup(g1, 0);
+    for i in 0..genes.len() {
+        if genes[i] == g {
+            genes.remove(i);
+            return;
+        }
+    }
+}
+
+#[inline]
+fn change_target_gene() {
+    println!("输入目标基因：(例3G3Y、2G1H)");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("输入设备错误");
+    input = input.trim().to_string();
+
+    if input.len() % 2 != 0 || input.len() == 0 {
+        println!("❌ 输入有误");
+        return;
+    }
+
+    let mut input = input.chars();
+    let mut idx = 0;
+    
+    loop {
+        let number = input.next();
+        match number {
+            Some(n) => {
+                let chr = input.next().unwrap();
+                let number = n.to_string().parse::<u8>();
+                match number {
+                    Ok(number) => {
+                        unsafe {
+                            if chr == 'G' || chr == 'g' {
+                                AMOUNT_TARGET[0] = number;
+                                continue;
+                            }
+                            if chr == 'H' || chr == 'h' {
+                                AMOUNT_TARGET[1] = number;
+                                continue;
+                            }
+                            if chr == 'Y' || chr == 'y' {
+                                AMOUNT_TARGET[2] = number;
+                                continue;
+                            }
+                            if chr == 'W' || chr == 'w' {
+                                AMOUNT_TARGET[3] = number;
+                                continue;
+                            }
+                            if chr == 'X' || chr == 'x' {
+                                AMOUNT_TARGET[4] = number;
+                                continue;
+                            }
+                            println!("❌ 输入有误");
+                            return;
+                        }
+                    }
+                    Err(_) => {
+                        println!("❌ 输入有误");
+                        return;
+                    }
+                }
+            }
+            None => {
+                return;
+            }
+        }
+    }
+}
+
+#[inline]
+fn change_spread_limit() {
+    println!("输入限制数值：");
+    let mut n = "".to_string();
+    stdin().read_line(&mut n).expect("❌ 输入设备错误");
+    let n = n.trim();
+    match n.parse::<usize>() {
+        Ok(n) => {
+            unsafe { SPEARD_LIMIT = n };
+        }
+        Err(_) => {
+            println!("❌ 格式错误");
+            return;
+        }
+    }
+}
+
+#[inline]
+fn change_probability(probability: BigDecimal) -> Option<BigDecimal> {
+    print!("输入概率：1/");
+    stdout().flush();
+    let mut n = "".to_string();
+    stdin().read_line(&mut n).expect("❌ 输入设备错误");
+    let n = n.trim();
+    match n.parse::<usize>() {
+        Ok(n) => {
+            return Some(BigDecimal::from_usize(n).unwrap());
+        }
+        Err(_) => {
+            println!("❌ 格式错误");
+            return None;
+        }
+    }
+}
+
+fn main() {
+    // let mut genes_vec: Vec<GeneGroup> = genes!{ "GYYHYY", "GYYYGY", "GYYYYY", "GGGHYX", "XYGHYW", "GYXYXY", "XYHGGY", };
+    let mut genes_vec = Vec::<GeneGroup>::new();
+    let mut already_compose_collection = Vec::new();
+    let mut selected_composed = Vec::new();
+    let mut probability_filter = BigDecimal::from_usize(1000).unwrap();
+
+    loop {
+        println!("\n\n\n\n\n目标基因：{}", display_target());
+        print!("当前基因：");
+        for g in &genes_vec {
+            print!("{} ", g.display())
+        }
+        println!("\n概率过滤器: >=1/{}", probability_filter );
+        println!("最长搜索链: <{}", unsafe { SPEARD_LIMIT });
+        println!();
+        println!("1. 添加基因");
+        println!("2. 删除基因");
+        println!("3. 修改目标基因");
+        println!("4. 修改搜索链限制");
+        println!("5. 修改概率过滤器");
+        println!("6. 开始");
+        println!("0. 退出");
+
+        print!("\n> ");
+        stdout().flush();
+
+        let mut code = String::new();
+        io::stdin().read_line(&mut code).expect("输入出错");
+        code = code.trim().to_string();
+
+        if code == "0" {
+            exit(0);
+        }
+
+        if code == "1" {
+            add_gene(&mut genes_vec);
+        }
+
+        if code == "2" {
+            remove_gene(&mut genes_vec);
+        }
+
+        if code == "3" {
+            change_target_gene();
+        }
+
+        if code == "4" {
+            change_spread_limit();
+        }
+
+        if code == "5" {
+            let r = change_probability(probability_filter);
+            probability_filter = match r {
+                Some(r) => r,
+                None => BigDecimal::from_usize(1000).unwrap(),
+            }
+        }
+
+        if code == "6" {
+            if genes_vec.len() == 0 {
+                println!("❌ 基因组不足");
+            } else {
+        
+            let mut genes_vec = genes_vec.clone();
+            let final_compose = predict(&mut genes_vec, &mut already_compose_collection, &mut selected_composed, &probability_filter);
+            
+                match final_compose {
+                    Some(a) => {
+                        println!("\n\n\n\n\n{}", display_backtrace_path(a, &mut selected_composed));
+                    }
+                    None => {
+                        println!("❌ 无路径");
+                    }
+                }
+            }
+        }
+
+        println!("\n按下回车继续.");
+        let mut g = "".to_string();
+        stdin().read_line(&mut g).expect("");
+        unsafe { GLOBAL_SIGN = 1 };
+    }
 }
