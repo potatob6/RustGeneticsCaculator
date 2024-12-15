@@ -537,13 +537,14 @@ fn evaluate_loss<'a>(compose_result: &'a mut Vec<ComposeResult>) {
     panic!("Unknown Loss mode.");
 }
 
-fn predict(exist_gene: &mut Vec<GeneGroup>, composed_collection: &mut Vec<ComposeResult>, selected_collection: &mut Vec<ComposeResult>, probability: &BigDecimal) -> Option<ComposeResult> {
+fn predict(exist_gene: &mut Vec<GeneGroup>, composed_collection: &mut Vec<ComposeResult>, selected_collection: &mut Vec<ComposeResult>, probability: &BigDecimal) -> (Option<ComposeResult>, Option<ComposeResult>) {
     let mut generation = 1usize;
+    let mut partial_lowest: Option<ComposeResult> = None;
     loop {
         let mut added_compose: Vec<ComposeResult> = one_step_compose_predict(&exist_gene, &composed_collection, &selected_collection, probability);
         composed_collection.append(&mut added_compose); 
         if composed_collection.len() == 0 || exist_gene.len() > unsafe { SPEARD_LIMIT } {
-            return None;
+            return (None, partial_lowest);
         }
 
         unsafe { assert_unchecked((&composed_collection).len() > 0); }
@@ -557,12 +558,23 @@ fn predict(exist_gene: &mut Vec<GeneGroup>, composed_collection: &mut Vec<Compos
             }
         }
 
+        match partial_lowest {
+            Some(ref c) => {
+                if lowest_loss.loss < c.loss {
+                    partial_lowest = Some(lowest_loss.clone());
+                }
+            }
+            None => {
+                partial_lowest = Some(lowest_loss.clone());
+            }
+        }
+
         if *lowest_loss.loss.borrow() != 0 {
             exist_gene.push(lowest_loss.gene_group.clone());
             selected_collection.push(lowest_loss.clone());
             composed_collection.remove(lowest_idx);
         } else {
-            return Some(lowest_loss.clone());
+            return (Some(lowest_loss.clone()), partial_lowest);
         }
     }
     generation += 1;
@@ -710,41 +722,46 @@ fn add_gene(genes: &mut Vec<GeneGroup>) {
     let mut input = String::new();
     stdin().read_line(&mut input).expect("输入设备错误");
     input = input.trim().to_string();
-    if input.len() != 6 {
-        println!("❌ 输入有误");
-        return;
-    }
 
-    let input = input.chars();
-    let mut idx = 0;
-    let mut g1 = [Gene::PLACEHOLDER; 6];
-    for chr in input {
-        if chr == 'X' || chr == 'x' {
-            g1[idx] = Gene::X;
-        }
-        if chr == 'Y' || chr == 'y' {
-            g1[idx] = Gene::Y;
-        }
-        if chr == 'G' || chr == 'g' {
-            g1[idx] = Gene::G;
-        }
-        if chr == 'H' || chr == 'h' {
-            g1[idx] = Gene::H;
-        }
-        if chr == 'W' || chr == 'w' {
-            g1[idx] = Gene::W;
-        }
-        idx += 1;
-    }
 
-    let g = GeneGroup(g1, 0);
-    for i in 0..genes.len() {
-        if g == genes[i] {
-            println!("❌ 基因已存在");
+    let splits = input.split_ascii_whitespace();
+    for token in splits {  
+        if token.len() != 6 {
+            println!("❌ 输入有误");
             return;
         }
+        let input = token.chars();
+        let mut idx = 0;
+        let mut g1 = [Gene::PLACEHOLDER; 6];
+        for chr in input {
+            if chr == 'X' || chr == 'x' {
+                g1[idx] = Gene::X;
+            }
+            if chr == 'Y' || chr == 'y' {
+                g1[idx] = Gene::Y;
+            }
+            if chr == 'G' || chr == 'g' {
+                g1[idx] = Gene::G;
+            }
+            if chr == 'H' || chr == 'h' {
+                g1[idx] = Gene::H;
+            }
+            if chr == 'W' || chr == 'w' {
+                g1[idx] = Gene::W;
+            }
+            idx += 1;
+        }
+
+        let g = GeneGroup(g1, 0);
+        for i in 0..genes.len() {
+            if g == genes[i] {
+                println!("❌ 基因已存在");
+                return;
+            }
+        }
+        genes.push(g);
     }
-    genes.push(g);
+
 }
 
 #[inline]
@@ -753,39 +770,43 @@ fn remove_gene(genes: &mut Vec<GeneGroup>) {
     let mut input = String::new();
     stdin().read_line(&mut input).expect("❌ 输入设备错误");
     input = input.trim().to_string();
-    if input.len() != 6 {
-        println!("❌ 输入有误");
-    }
-
-    let input = input.chars();
-    let mut idx = 0;
-    let mut g1 = [Gene::PLACEHOLDER; 6];
-    for chr in input {
-        if chr == 'X' || chr == 'x' {
-            g1[idx] = Gene::X;
-        }
-        if chr == 'Y' || chr == 'y' {
-            g1[idx] = Gene::Y;
-        }
-        if chr == 'G' || chr == 'g' {
-            g1[idx] = Gene::G;
-        }
-        if chr == 'H' || chr == 'h' {
-            g1[idx] = Gene::H;
-        }
-        if chr == 'W' || chr == 'w' {
-            g1[idx] = Gene::W;
-        }
-        idx += 1;
-    }
-
-    let g = GeneGroup(g1, 0);
-    for i in 0..genes.len() {
-        if genes[i] == g {
-            genes.remove(i);
+    let splits = input.split_ascii_whitespace();
+    'outter: for token in splits {  
+        if token.len() != 6 {
+            println!("❌ 输入有误");
             return;
         }
+        let input = token.chars();
+        let mut idx = 0;
+        let mut g1 = [Gene::PLACEHOLDER; 6];
+        for chr in input {
+            if chr == 'X' || chr == 'x' {
+                g1[idx] = Gene::X;
+            }
+            if chr == 'Y' || chr == 'y' {
+                g1[idx] = Gene::Y;
+            }
+            if chr == 'G' || chr == 'g' {
+                g1[idx] = Gene::G;
+            }
+            if chr == 'H' || chr == 'h' {
+                g1[idx] = Gene::H;
+            }
+            if chr == 'W' || chr == 'w' {
+                g1[idx] = Gene::W;
+            }
+            idx += 1;
+        }
+
+        let g = GeneGroup(g1, 0);
+        for i in 0..genes.len() {
+            if genes[i] == g {
+                genes.remove(i);
+                continue 'outter;
+            }
+        }
     }
+
 }
 
 #[inline]
@@ -891,11 +912,12 @@ fn change_probability(probability: BigDecimal) -> Option<BigDecimal> {
 fn main() {
     // let mut genes_vec: Vec<GeneGroup> = genes!{ "GYYHYY", "GYYYGY", "GYYYYY", "GGGHYX", "XYGHYW", "GYXYXY", "XYHGGY", };
     let mut genes_vec = Vec::<GeneGroup>::new();
-    let mut already_compose_collection = Vec::new();
-    let mut selected_composed = Vec::new();
     let mut probability_filter = BigDecimal::from_usize(1000).unwrap();
 
     loop {
+        let mut global_lowest_loss: Option<ComposeResult> = None;
+        let mut already_compose_collection = Vec::new();
+        let mut selected_composed = Vec::new();
         println!("\n\n\n\n\n目标基因：{}", display_target());
         print!("当前基因：");
         for g in &genes_vec {
@@ -958,14 +980,21 @@ fn main() {
             } else {
         
             let mut genes_vec = genes_vec.clone();
-            let final_compose = predict(&mut genes_vec, &mut already_compose_collection, &mut selected_composed, &probability_filter);
+            let (final_compose, partial_lowest) = predict(&mut genes_vec, &mut already_compose_collection, &mut selected_composed, &probability_filter);
             
                 match final_compose {
                     Some(a) => {
-                        println!("\n\n\n\n\n{}", display_backtrace_path(a, &mut selected_composed));
+                        println!("\n\n\n\n\n找到路径{}", display_backtrace_path(a, &mut selected_composed));
                     }
                     None => {
                         println!("❌ 无路径");
+
+                        match partial_lowest {
+                            Some(c) => { 
+                                println!("但是找到一个推荐路径：\n{}", display_backtrace_path(c, &mut selected_composed));
+                            }
+                            None => { }
+                        }
                     }
                 }
             }
