@@ -926,10 +926,10 @@ fn main() {
         println!("\n🚫 概率过滤器: >=1/{}", probability_filter );
         println!("🚫 最长搜索链: <{}", unsafe { SPEARD_LIMIT });
         println!();
-        println!("1. 🟢 添加基因");
-        println!("2. 🟢 删除基因");
-        println!("3. 🟢 修改目标基因");
-        println!("4. 🟢 清除所有基因");
+        println!("1. 🔵 添加基因");
+        println!("2. 🔵 删除基因");
+        println!("3. 🔵 修改目标基因");
+        println!("4. 🔵 清除所有基因");
         println!("5. 🟡 修改搜索链限制");
         println!("6. 🟡 修改概率过滤器");
         println!("9. 开始");
@@ -959,10 +959,14 @@ fn main() {
         }
 
         if code == "4" {
-            change_spread_limit();
+            genes_vec = vec![];
         }
 
         if code == "5" {
+            change_spread_limit();
+        }
+
+        if code == "6" {
             let r = change_probability(probability_filter);
             probability_filter = match r {
                 Some(r) => r,
@@ -971,10 +975,6 @@ fn main() {
         }
 
         if code == "9" {
-            genes_vec = vec![];
-        }
-
-        if code == "6" {
             if genes_vec.len() == 0 {
                 println!("❌ 基因组不足");
             } else {
