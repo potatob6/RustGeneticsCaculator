@@ -372,21 +372,21 @@ fn vec_result_non_exists(result: &Vec<ComposeResult>, v0: &Vec<ComposeResult>, v
     let mut output = Vec::new();
     for r in result {
         let probability_denominator = &r.probability.1;
-        if !result_exists(r, v0) && !result_exists(r, v1) && probability_denominator <= probability {
+        if !result_exists(r, v0) && !result_exists(r, v1) && (probability_denominator <= probability) {
             output.push(r.clone());
         }
     }
     output
 }
 
-fn vec_result_non_selected(result: Vec<ComposeResult>, selected_collection: &Vec<ComposeResult>) -> Vec<ComposeResult> {
+fn vec_result_non_selected(result: Vec<ComposeResult>, selected_collection: &Vec<ComposeResult>, probability: &BigDecimal) -> Vec<ComposeResult> {
     let mut output = Vec::new();
     if selected_collection.len() == 0 {
         return result;
     }
     'outter: for i in result {
         for selected in selected_collection {
-            if i != *selected {
+            if i != *selected && (&i.probability.1 <= probability) {
                 output.push(i);
                 continue 'outter;
             }
@@ -417,7 +417,7 @@ fn one_step_compose_predict<'a>(exists_gene: &Vec<GeneGroup>, already_compose_co
     a1.append(&mut a2);
     let mut a3 = vec_result_non_exists(&a3, &a1, &already_compose_collection, probability);
     a1.append(&mut a3);
-    a1 = vec_result_non_selected(a1, selected_collection);
+    a1 = vec_result_non_selected(a1, selected_collection, probability);
 
     for j in &mut a1 {
         // SAFTY: Use static data with single thread is safe. No any data conflition.
@@ -599,16 +599,16 @@ fn display_target() -> String {
         result += &format!("{}G", unsafe { AMOUNT_TARGET[0] });
     }
     if unsafe { AMOUNT_TARGET }[1] != 0 {
-        result += &format!("{}H", unsafe { AMOUNT_TARGET[0] });
+        result += &format!("{}H", unsafe { AMOUNT_TARGET[1] });
     }
     if unsafe { AMOUNT_TARGET }[2] != 0 {
-        result += &format!("{}Y", unsafe { AMOUNT_TARGET[0] });
+        result += &format!("{}Y", unsafe { AMOUNT_TARGET[2] });
     }
     if unsafe { AMOUNT_TARGET }[3] != 0 {
-        result += &format!("{}W", unsafe { AMOUNT_TARGET[0] });
+        result += &format!("{}W", unsafe { AMOUNT_TARGET[3] });
     }
     if unsafe { AMOUNT_TARGET }[4] != 0 {
-        result += &format!("{}X", unsafe { AMOUNT_TARGET[0] });
+        result += &format!("{}X", unsafe { AMOUNT_TARGET[4] });
     }
     result
 }
@@ -642,6 +642,8 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &Vec<ComposeR
         node: ComposeResult,
     }
 
+
+    let mut leaf = Vec::<(GeneGroup, usize)>::new();
     let mut output = String::new();
     let mut tmp: Vec<Vec<BackTraceNode>> = vec![vec![ BackTraceNode { times: 1, node: result } ]];
     let mut prev_idx = 0;
@@ -658,6 +660,11 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &Vec<ComposeR
             let all_next_node = find_prev_compose_node(compose_result.clone(), selected_compose);
             for j in all_next_node {
                 new_trace_node.push(BackTraceNode { times: count * j.1.1, node: j.1.0.clone() });
+                for k in j.1.0.prev_gene_group {
+                    if k.1 == 0 {
+                        leaf.push((k.clone(), count * j.1.1));
+                    }
+                }
             }
         }
 
@@ -676,13 +683,13 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &Vec<ComposeR
     let mut step_count = 0usize;
     for i in (0..tmp.len()).rev() {
         if tmp[i].len() == 1 {
-            output += &format!("#{}  合成{}:  概率：1/{}\n", step_count + 1, &tmp[i][0].node.gene_group, tmp[i][0].node.probability.1);
+            output += &format!("#{}  合成{}:  概率：1/{}\n", step_count + 1, &tmp[i][0].node.gene_group, &tmp[i][0].node.probability.1);
             for genes in &tmp[i][0].node.prev_gene_group {
                 output += &format!("    {}\n", genes);
             }
         } else {
             for j in 0..tmp[i].len() {
-                output += &format!("#{}-{}  合成{}:  概率: 1/{}\n", step_count + 1, j + 1, &tmp[i][j].node.gene_group, tmp[i][j].node.probability.1);
+                output += &format!("#{}-{}  合成{}:  概率: 1/{}\n", step_count + 1, j + 1, &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
                 for genes in &tmp[i][j].node.prev_gene_group {
                     output += &format!("    {}\n", genes);
                 }
@@ -796,6 +803,10 @@ fn change_target_gene() {
     let mut input = input.chars();
     let mut idx = 0;
     
+    for i in 0..5 {
+        unsafe { AMOUNT_TARGET [i] = 0 };
+    } 
+
     loop {
         let number = input.next();
         match number {
@@ -899,6 +910,7 @@ fn main() {
         println!("4. 修改搜索链限制");
         println!("5. 修改概率过滤器");
         println!("6. 开始");
+        println!("9. 清除所有基因");
         println!("0. 退出");
 
         print!("\n> ");
@@ -934,6 +946,10 @@ fn main() {
                 Some(r) => r,
                 None => BigDecimal::from_usize(1000).unwrap(),
             }
+        }
+
+        if code == "9" {
+            genes_vec = vec![];
         }
 
         if code == "6" {
