@@ -984,7 +984,7 @@ fn main() {
             
                 match final_compose {
                     Some(a) => {
-                        println!("\n\n\n\n\n找到路径{}", display_backtrace_path(a, &mut selected_composed));
+                        println!("✔ 找到路径\n{}", display_backtrace_path(a, &mut selected_composed));
                     }
                     None => {
                         println!("❌ 无路径");
