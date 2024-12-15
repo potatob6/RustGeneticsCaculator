@@ -918,21 +918,21 @@ fn main() {
         let mut global_lowest_loss: Option<ComposeResult> = None;
         let mut already_compose_collection = Vec::new();
         let mut selected_composed = Vec::new();
-        println!("\n\n\n\n\n目标基因：{}", display_target());
-        print!("当前基因：");
+        println!("\n\n\n\n\n\n\n\n\n\n\n\n🎯 目标基因：{}", display_target());
+        print!("🧬 当前基因：");
         for g in &genes_vec {
             print!("{} ", g.display())
         }
-        println!("\n概率过滤器: >=1/{}", probability_filter );
-        println!("最长搜索链: <{}", unsafe { SPEARD_LIMIT });
+        println!("\n🚫 概率过滤器: >=1/{}", probability_filter );
+        println!("🚫 最长搜索链: <{}", unsafe { SPEARD_LIMIT });
         println!();
-        println!("1. 添加基因");
-        println!("2. 删除基因");
-        println!("3. 修改目标基因");
-        println!("4. 修改搜索链限制");
-        println!("5. 修改概率过滤器");
-        println!("6. 开始");
-        println!("9. 清除所有基因");
+        println!("1. 🟢 添加基因");
+        println!("2. 🟢 删除基因");
+        println!("3. 🟢 修改目标基因");
+        println!("4. 🟢 清除所有基因");
+        println!("5. 🟡 修改搜索链限制");
+        println!("6. 🟡 修改概率过滤器");
+        println!("9. 开始");
         println!("0. 退出");
 
         print!("\n> ");
@@ -984,10 +984,10 @@ fn main() {
             
                 match final_compose {
                     Some(a) => {
-                        println!("✔ 找到路径\n{}", display_backtrace_path(a, &mut selected_composed));
+                        println!("🟢 ✔ 找到路径  🟢\n{}", display_backtrace_path(a, &mut selected_composed));
                     }
                     None => {
-                        println!("❌ 无路径");
+                        println!("🔴 ❌ 无路径  🔴");
 
                         match partial_lowest {
                             Some(c) => { 
