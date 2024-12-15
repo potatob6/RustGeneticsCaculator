@@ -719,19 +719,19 @@ fn add_gene(genes: &mut Vec<GeneGroup>) {
     let mut idx = 0;
     let mut g1 = [Gene::PLACEHOLDER; 6];
     for chr in input {
-        if chr == 'X' {
+        if chr == 'X' || chr == 'x' {
             g1[idx] = Gene::X;
         }
-        if chr == 'Y' {
+        if chr == 'Y' || chr == 'y' {
             g1[idx] = Gene::Y;
         }
-        if chr == 'G' {
+        if chr == 'G' || chr == 'g' {
             g1[idx] = Gene::G;
         }
-        if chr == 'H' {
+        if chr == 'H' || chr == 'h' {
             g1[idx] = Gene::H;
         }
-        if chr == 'W' {
+        if chr == 'W' || chr == 'w' {
             g1[idx] = Gene::W;
         }
         idx += 1;
@@ -761,19 +761,19 @@ fn remove_gene(genes: &mut Vec<GeneGroup>) {
     let mut idx = 0;
     let mut g1 = [Gene::PLACEHOLDER; 6];
     for chr in input {
-        if chr == 'X' {
+        if chr == 'X' || chr == 'x' {
             g1[idx] = Gene::X;
         }
-        if chr == 'Y' {
+        if chr == 'Y' || chr == 'y' {
             g1[idx] = Gene::Y;
         }
-        if chr == 'G' {
+        if chr == 'G' || chr == 'g' {
             g1[idx] = Gene::G;
         }
-        if chr == 'H' {
+        if chr == 'H' || chr == 'h' {
             g1[idx] = Gene::H;
         }
-        if chr == 'W' {
+        if chr == 'W' || chr == 'w' {
             g1[idx] = Gene::W;
         }
         idx += 1;
