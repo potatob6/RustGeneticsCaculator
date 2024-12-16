@@ -408,6 +408,8 @@ fn result_exists(result: &ComposeResult, v: &Vec<ComposeResult>) -> bool {
 
 fn one_step_compose_predict<'a>(exists_gene: &Vec<GeneGroup>, already_compose_collection: &Vec<ComposeResult>, selected_collection: &Vec<ComposeResult>, probability: &BigDecimal) 
     -> Vec<ComposeResult> {
+
+    
     let mut a1 = select2compose(&exists_gene, &already_compose_collection, probability);
     let mut a2 = select3compose(&exists_gene, &already_compose_collection, probability);
     let mut a3 = select4compose(&exists_gene, &already_compose_collection, probability);
