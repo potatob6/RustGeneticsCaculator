@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, cell::RefCell, collections::{hash_map::Keys, HashMap, HashSet}, default, fmt::Display, fs::exists, hash::{BuildHasherDefault, Hash}, hint::assert_unchecked, io::{self, stdin, stdout, Write}, process::{exit, id}, rc::Rc, sync::LazyLock, u8, usize, vec};
+use std::{borrow::Borrow, cell::RefCell, collections::{hash_map::Keys, HashMap, HashSet}, default, fmt::Display, fs::exists, hash::{BuildHasherDefault, Hash}, hint::assert_unchecked, io::{self, stdin, stdout, Write}, process::{exit, id}, rc::Rc, sync::LazyLock, time::SystemTime, u8, usize, vec};
 
 use bigdecimal::{BigDecimal, FromPrimitive};
 use fraction::Fraction;
@@ -407,7 +407,7 @@ fn select2compose(exist_gene_vec: &Vec<&GeneGroup>, exist_hash: &NoHashSet<GeneG
     selected: &NoHashSet<ComposeResult>) -> Vec<ComposeResult> {
 
     // already_collection only for check repeat item
-    let mut output = Vec::new();
+    let mut output = Vec::with_capacity( exist_gene_vec.len().pow(2) );
     let l = exist_gene_vec.len();
     for i in 0..l {
         for j in i..l {
@@ -428,7 +428,7 @@ fn select3compose(exist_gene_vec: &Vec<&GeneGroup>, exist_hash: &NoHashSet<GeneG
     selected: &NoHashSet<ComposeResult>) -> Vec<ComposeResult> {
 
     // already_collection only for check repeat item
-    let mut output = Vec::new();
+    let mut output = Vec::with_capacity( exist_gene_vec.len().pow(3) );
     let l = exist_gene_vec.len();
     for i in 0..l {
         for j in i..l {
@@ -451,14 +451,14 @@ fn select4compose(exist_gene_vec: &Vec<&GeneGroup>, exist_hash: &NoHashSet<GeneG
     selected: &NoHashSet<ComposeResult>) -> Vec<ComposeResult> {
 
     // already_collection only for check repeat item
-    let mut output = Vec::new();
+    let mut output = Vec::with_capacity( exist_gene_vec.len().pow(4) );
     let l = exist_gene_vec.len();
     for i in 0..l {
         for j in i..l {
             for k in j..l {
                 for z in k..l {
                     if !(i == j && i == k && i == z) {
-                        let v = vec![exist_gene_vec[i], exist_gene_vec[j], exist_gene_vec[k]];
+                        let v = vec![exist_gene_vec[i], exist_gene_vec[j], exist_gene_vec[k], exist_gene_vec[z]];
                         let mut results = compose(v, exist_hash, already_collection, selected, probability);
                         // let mut added = vec_result_non_exists(&results, &output, &already_collection, probability);
                         output.append(&mut results);
@@ -470,46 +470,82 @@ fn select4compose(exist_gene_vec: &Vec<&GeneGroup>, exist_hash: &NoHashSet<GeneG
     output
 }
 
-// fn vec_result_non_exists(result: &Vec<ComposeResult>, v0: &Vec<ComposeResult>, v1: &Vec<ComposeResult>, probability: &BigDecimal) -> Vec<ComposeResult> {
-//     let mut output = Vec::new();
-//     for r in result {
-//         let probability_denominator = &r.probability.1;
-//         if !result_exists(r, v0) && !result_exists(r, v1) && (probability_denominator <= probability) {
-//             output.push(r.clone());
-//         }
-//     }
-//     output
-// }
+fn select2compose_delta(exist_gene_vec: &Vec<&GeneGroup>, exist_hash: &NoHashSet<GeneGroup>, 
+    already_collection: &NoHashSet<ComposeResult>, probability: &BigDecimal, 
+    selected: &NoHashSet<ComposeResult>, fixed_node: &GeneGroup, 
+    delta_compose: &mut NoHashSet<ComposeResult>) {
 
-// fn vec_result_non_selected(result: Vec<ComposeResult>, selected_collection: &Vec<ComposeResult>, probability: &BigDecimal) -> Vec<ComposeResult> {
-//     let mut output = Vec::new();
-//     if selected_collection.len() == 0 {
-//         return result;
-//     }
-//     'outter: for i in result {
-//         for selected in selected_collection {
-//             if i != *selected && (&i.probability.1 <= probability) {
-//                 output.push(i);
-//                 continue 'outter;
-//             }
-//         }
-//     }
-//     output
-// }
-
-#[inline]
-fn result_exists(result: &ComposeResult, v: &Vec<ComposeResult>) -> bool {
-    let mut exists = false;
-    for n in v {
-        if n == result {
-            exists = true;
-            break;
+    // already_collection only for check repeat item
+    // let mut output = Vec::with_capacity( exist_gene_vec.len().pow(2) );
+    let l = exist_gene_vec.len();
+    for i in 0..l {
+        if exist_gene_vec[i] != fixed_node {
+            let v = vec![exist_gene_vec[i], fixed_node];
+            let results = compose(v, exist_hash, already_collection, selected, probability);
+            // let mut added = vec_result_non_exists(&results, &output, &already_collection, probability);
+            for mut item in results {
+                item.sign = unsafe { GLOBAL_SIGN };
+                item.gene_group.1 = unsafe { GLOBAL_SIGN };
+                unsafe { GLOBAL_SIGN += 1 };
+                delta_compose.insert(item, ());
+            }
         }
     }
-    exists
 }
 
-fn one_step_compose_predict<'a>(exists_gene: &NoHashSet<GeneGroup>, already_compose_collection: &NoHashSet<ComposeResult>, selected_collection: &NoHashSet<ComposeResult>, probability: &BigDecimal) 
+/// Output is the added items for already_collection
+fn select3compose_delta(exist_gene_vec: &Vec<&GeneGroup>, exist_hash: &NoHashSet<GeneGroup>, 
+    already_collection: &NoHashSet<ComposeResult>, probability: &BigDecimal, 
+    selected: &NoHashSet<ComposeResult>, fixed_node: &GeneGroup, 
+    delta_compose: &mut NoHashSet<ComposeResult>) {
+
+    // already_collection only for check repeat item
+    let l = exist_gene_vec.len();
+    for i in 0..l {
+        for j in i..l {
+            if !(i == j && exist_gene_vec[i] == fixed_node) {
+                let v = vec![exist_gene_vec[i], exist_gene_vec[j], fixed_node];
+                let results = compose(v, exist_hash, already_collection, selected, probability);
+                // let mut added = vec_result_non_exists(&results, &output, &already_collection, probability);
+                for mut item in results {
+                    item.sign = unsafe { GLOBAL_SIGN };
+                    item.gene_group.1 = unsafe { GLOBAL_SIGN };
+                    unsafe { GLOBAL_SIGN += 1 };
+                    delta_compose.insert(item, ());
+                }
+            }
+        }
+    }
+}
+
+/// Output is the added items for already_collection
+fn select4compose_delta(exist_gene_vec: &Vec<&GeneGroup>, exist_hash: &NoHashSet<GeneGroup>, 
+    already_collection: &NoHashSet<ComposeResult>, probability: &BigDecimal, 
+    selected: &NoHashSet<ComposeResult>, fixed_node: &GeneGroup, 
+    delta_compose: &mut NoHashSet<ComposeResult>) {
+
+    // already_collection only for check repeat item
+    let l = exist_gene_vec.len();
+    for i in 0..l {
+        for j in i..l {
+            for k in j..l {
+                if !(i == j && i == k && exist_gene_vec[i] == fixed_node) {
+                    let v = vec![exist_gene_vec[i], exist_gene_vec[j], exist_gene_vec[k], fixed_node];
+                    let results = compose(v, exist_hash, already_collection, selected, probability);
+                    // let mut added = vec_result_non_exists(&results, &output, &already_collection, probability);
+                    for mut item in results {
+                        item.sign = unsafe { GLOBAL_SIGN };
+                        item.gene_group.1 = unsafe { GLOBAL_SIGN };
+                        unsafe { GLOBAL_SIGN += 1 };
+                        delta_compose.insert(item, ());
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn one_step_compose_predict(exists_gene: &NoHashSet<GeneGroup>, already_compose_collection: &NoHashSet<ComposeResult>, selected_collection: &NoHashSet<ComposeResult>, probability: &BigDecimal) 
     -> (Vec<ComposeResult>, Vec<ComposeResult>, Vec<ComposeResult>) {
 
     let exists_vec = exists_gene.keys().collect::<Vec<&GeneGroup>>();
@@ -533,6 +569,19 @@ fn one_step_compose_predict<'a>(exists_gene: &NoHashSet<GeneGroup>, already_comp
 
     evaluate_loss(&mut a1);
     (a1, a2, a3)
+}
+
+fn one_step_compose_predict_delta(exists_gene: &NoHashSet<GeneGroup>, already_compose_collection: &NoHashSet<ComposeResult>, 
+    selected_collection: &NoHashSet<ComposeResult>, probability: &BigDecimal, 
+    fixed_node: &GeneGroup, delta_compose: &mut NoHashSet<ComposeResult>) {
+
+    let exists_vec = exists_gene.keys().collect::<Vec<&GeneGroup>>();
+
+    select2compose_delta(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection, fixed_node, delta_compose);
+    select3compose_delta(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection, fixed_node, delta_compose);
+    select4compose_delta(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection, fixed_node, delta_compose);
+
+    evaluate_loss_delta(delta_compose);
 }
 
 fn evaluate_loss<'a>(compose_result: &'a mut Vec<ComposeResult>) {
@@ -642,60 +691,282 @@ fn evaluate_loss<'a>(compose_result: &'a mut Vec<ComposeResult>) {
     panic!("Unknown Loss mode.");
 }
 
+fn evaluate_loss_delta<'a>(compose_result: &'a mut NoHashSet<ComposeResult>) -> Option<&'a ComposeResult> {
+    let mut lowest_loss_score: Option<&'a ComposeResult> = None;
+    if compose_result.len() == 0 {
+        return None;
+    }
+    // SAFTY: Use static data with single thread is safe. No any data conflition.
+    if unsafe { &LOSS_MODE } == &LossMode::ACCURACY {
+        for (item, _) in compose_result {
+            let mut loss_score = 0u8;
+            for j in 0..6 {
+                if item.gene_group.0[j] != unsafe { ACCURACY_TARGET }[j] {
+                    loss_score += 1;
+                }
+            }
+
+            {
+                *item.loss.borrow_mut() = loss_score;
+            }
+
+            match lowest_loss_score {
+                Some(prev) => {
+                    if loss_score < *prev.loss.borrow() {
+                        lowest_loss_score = Some(item);
+                    } else {
+                        lowest_loss_score = Some(prev);
+                    }
+                }
+                None => {
+                    lowest_loss_score = Some(item);
+                }
+            }
+        }
+
+        return lowest_loss_score;
+    } else if unsafe { &LOSS_MODE } == &LossMode::AMOUNT {
+        let mut lowest_loss_score: Option<&'a ComposeResult> = None;
+        for (item, _) in compose_result {
+            let mut seperate_gene_amount = [0u8; 5];
+            let mut loss_score = 0u8;
+
+            for k in 0..6 {
+
+                let g = item.gene_group.0[k];
+
+                // Count Gene::G
+                if g == Gene::G {
+                    seperate_gene_amount[0] += 1;
+                    continue;
+                }
+
+                // Count Gene::H
+                if g == Gene::H {
+                    seperate_gene_amount[1] += 1;
+                    continue;
+                }
+
+                // Count Gene::Y
+                if g == Gene::Y {
+                    seperate_gene_amount[2] += 1;
+                    continue;
+                }
+
+                // Count Gene::W
+                if g == Gene::W {
+                    seperate_gene_amount[3] += 1;
+                    continue;
+                }
+
+                // Count Gene::X
+                if g == Gene::X {
+                    seperate_gene_amount[4] += 1;
+                    continue;
+                }
+            }
+
+            for k in 0..5 {
+                if seperate_gene_amount[k] >= unsafe { AMOUNT_TARGET }[k] {
+                    loss_score += seperate_gene_amount[k] - unsafe { AMOUNT_TARGET }[k];
+                } else {
+                    loss_score += unsafe { AMOUNT_TARGET }[k] - seperate_gene_amount[k];
+                }
+            }
+
+            { *item.loss.borrow_mut() = loss_score; }
+
+            match lowest_loss_score {
+                Some(prev) => {
+                    if loss_score < *prev.loss.borrow() {
+                        lowest_loss_score = Some(item);
+                    } else {
+                        lowest_loss_score = Some(prev);
+                    }
+                }
+                None => {
+                    lowest_loss_score = Some(item);
+                }
+            }
+        }
+        
+        
+        return lowest_loss_score;
+    }
+    panic!("Unknown Loss mode.");
+}
+
+fn first_time_step(exist_gene: &mut NoHashSet<GeneGroup>, composed_collection: &mut NoHashSet<ComposeResult>, selected_collection: &mut NoHashSet<ComposeResult>, probability: &BigDecimal)
+    -> (Option<ComposeResult>, Option<ComposeResult>) {
+    let (a1, a2, a3) = one_step_compose_predict(&exist_gene, &composed_collection, &selected_collection, probability);
+    for i in a3 {
+        composed_collection.insert(i, ());
+    }
+    for i in a2 {
+        composed_collection.insert(i, ());
+    }
+    for i in a1 {
+        composed_collection.insert(i, ());
+    }
+
+    if composed_collection.len() == 0 {
+        return (None, None);
+    }
+
+    unsafe { assert_unchecked((&composed_collection).len() > 0); }
+    // Find lowest loss
+    let (mut lowest_loss, _) = composed_collection.iter().next().unwrap();
+    for (k, _) in composed_collection.iter() {
+        if *k.loss.borrow() < *lowest_loss.loss.borrow() {
+            lowest_loss = k;
+        }
+    }
+
+    let lowest_loss = lowest_loss.clone();
+
+    if *lowest_loss.loss.borrow() != 0 {
+        exist_gene.insert(lowest_loss.gene_group.clone(), ());
+        // println!("{} lowest {}", exist_gene.len(), lowest_loss.clone().gene_group.display());
+        selected_collection.insert(lowest_loss.clone(), ());
+        composed_collection.remove(&lowest_loss);
+
+        return (None, Some(lowest_loss.clone()));
+    } else {
+        return (Some(lowest_loss.clone()), Some(lowest_loss.clone()));
+    }
+}
+
+fn delta_step(exist_gene: &mut NoHashSet<GeneGroup>, composed_collection: &mut NoHashSet<ComposeResult>, 
+    selected_collection: &mut NoHashSet<ComposeResult>, probability: &BigDecimal, 
+    last_selected_genegroup: &GeneGroup)
+-> (Option<ComposeResult>, Option<ComposeResult>, NoHashSet<ComposeResult>) {
+
+    let mut delta_compose = NoHashSet::<ComposeResult>::with_capacity_and_hasher(exist_gene.len().pow(4), BuildNoHashHasher::default());
+    one_step_compose_predict_delta(&exist_gene, &composed_collection, &selected_collection, probability, last_selected_genegroup, &mut delta_compose);
+    if delta_compose.len() == 0 {
+        return (None, None, delta_compose);
+    }
+
+    unsafe { assert_unchecked((&composed_collection).len() > 0); }
+
+    let (min, _) = delta_compose.iter()
+        .min_by_key(|x| { *x.0.loss.borrow() }).unwrap();
+    let min = min.clone();
+
+    delta_compose.remove(&min.clone());
+
+    if *min.loss.borrow() == 0 {
+        return (Some(min), None, delta_compose);
+    }
+
+    return (None, Some(min), delta_compose);
+}
+
 fn predict(exist_gene: &mut NoHashSet<GeneGroup>, composed_collection: &mut NoHashSet<ComposeResult>, selected_collection: &mut NoHashSet<ComposeResult>, probability: &BigDecimal) -> (Option<ComposeResult>, Option<ComposeResult>) {
     let mut generation = 1usize;
     let mut partial_lowest: Option<ComposeResult> = None;
-    loop {
-        let (a1, a2, a3) = one_step_compose_predict(&exist_gene, &composed_collection, &selected_collection, probability);
-        for i in a3 {
-            composed_collection.insert(i, ());
+    
+    let (global, mut partial) = first_time_step(exist_gene, composed_collection, selected_collection, probability);
+    match global {
+        Some(g) => {
+            unsafe { assert_unchecked(partial.is_some()); }
+            return (Some(g), partial);
         }
-        for i in a2 {
-            composed_collection.insert(i, ());
-        }
-        for i in a1 {
-            composed_collection.insert(i, ());
-        }
+        None => { }
+    }
 
-        if composed_collection.len() == 0 || exist_gene.len() > unsafe { SPEARD_LIMIT } {
-            return (None, partial_lowest);
+    match partial {
+        None => {
+            return (None, None);
         }
+        Some(mut prev_selected_result) => {
+            // Delta update
+            let mut prev_lowest_loss = composed_collection.iter().min_by_key(|x| *x.0.loss.borrow() );
+            let mut prev_selected_genegroup = prev_selected_result.gene_group.clone();
 
-        unsafe { assert_unchecked((&composed_collection).len() > 0); }
-        // Find lowest loss
-        let (mut lowest_loss, _)= composed_collection.iter().next().unwrap();
-        for (k, _) in composed_collection.iter() {
-            if *k.loss.borrow() < *lowest_loss.loss.borrow() {
-                lowest_loss = k;
-            }
-        }
+            let mut prev_lowest_loss = match prev_lowest_loss {
+                Some(p) => Some((p.0.clone(), ())),
+                None => None,
+            };
+            loop {
+                let (global, partial, mut delta_compose) = delta_step(exist_gene, composed_collection, selected_collection, probability, &prev_selected_genegroup);
+                let delta_compose_lowest = delta_compose.iter().min_by_key(|x| *x.0.loss.borrow() );
+                match global {
+                    Some(_) => {
+                        return (global, None);
+                    }
+                    None => { },
+                }
 
-        match partial_lowest {
-            Some(ref c) => {
-                if lowest_loss.loss < c.loss {
-                    partial_lowest = Some(lowest_loss.clone());
+                match partial {
+                    None => { return (None, None) }
+                    Some(now) => {
+                        match prev_lowest_loss {
+                            Some(ref prev_lowest_loss1) => {
+                                if *now.loss.borrow() < *prev_lowest_loss1.0.loss.borrow() {
+                                    prev_selected_genegroup = now.gene_group.clone();
+                                    exist_gene.insert(now.gene_group.clone(), ());
+                                    selected_collection.insert(now, ());
+
+                                    match delta_compose_lowest {
+                                        Some(delta_compose_lowest1) => {
+                                            if *delta_compose_lowest1.0.loss.borrow() < *prev_lowest_loss1.0.loss.borrow() {
+                                                prev_lowest_loss = Some((delta_compose_lowest1.0.clone(), ()));
+                                            } else { }
+                                        }
+                                        None => { }
+                                    }
+
+                                    let _ = delta_compose.into_iter().map(|x| composed_collection.insert(x.0, ()) );
+                                } else {
+                                    composed_collection.remove(&prev_lowest_loss1.0);
+                                    exist_gene.insert((&prev_lowest_loss1.0.gene_group).clone(), ());
+                                    prev_selected_genegroup = (&prev_lowest_loss1.0.gene_group).clone();
+                                    selected_collection.insert(prev_lowest_loss1.0.clone(), ());
+
+                                    let prev_min = composed_collection.iter().min_by_key(|x| {
+                                        *x.0.loss.borrow()
+                                    });
+
+                                    match prev_min {
+                                        Some(min) => {
+                                            if *now.loss.borrow() < *min.0.loss.borrow() {
+                                                prev_lowest_loss = Some((now.clone(), ()));
+                                            } else {
+                                                prev_lowest_loss = None;
+                                            }
+                                        }
+                                        None => {
+                                            prev_lowest_loss = Some((now.clone(), ()));
+                                        }
+                                    }
+                                    let _ = delta_compose.into_iter().map(|x| composed_collection.insert(x.0, ()) );
+                                }
+                            },
+                            None => {
+                                exist_gene.insert(now.gene_group.clone(), ());
+                                prev_selected_genegroup = now.gene_group.clone();
+                                selected_collection.insert(now, ());
+                                match delta_compose_lowest {
+                                    Some(delta_compose_lowest) => {
+                                        prev_lowest_loss = Some((delta_compose_lowest.0.clone(), ()));
+                                    }
+                                    None => { }
+                                }
+
+                                let _ = delta_compose.into_iter().map(|x| composed_collection.insert(x.0.clone(), ()));
+                            },
+                        }
+                    }
+                }                
+
+                if exist_gene.len() > unsafe { SPEARD_LIMIT } {
+                    return (None, Some(prev_selected_result));
                 }
             }
-            None => {
-                partial_lowest = Some(lowest_loss.clone());
-            }
-        }
-
-        if *lowest_loss.loss.borrow() != 0 {
-            exist_gene.insert(lowest_loss.gene_group.clone(), ());
-            selected_collection.insert(lowest_loss.clone(), ());
-            composed_collection.remove(&lowest_loss.clone());
-        } else {
-            return (Some(lowest_loss.clone()), partial_lowest);
         }
     }
     generation += 1;
-}
-
-macro_rules! genes {
-    ($($s: expr,)+) => {
-        vec![$(GeneGroup::from_str($s).unwrap(),)+]
-    };
 }
 
 #[repr(u8)]
@@ -1083,10 +1354,12 @@ fn main() {
                 println!("❌ 基因组不足");
             } else {
         
-            let mut genes_vec = genes_vec.clone();
-            let (final_compose, partial_lowest) = 
-                predict(&mut genes_vec, &mut already_compose_collection, &mut selected_composed, &probability_filter);
-            
+                let mut genes_vec = genes_vec.clone();
+
+                let start_time = SystemTime::now();
+                let (final_compose, partial_lowest) = 
+                    predict(&mut genes_vec, &mut already_compose_collection, &mut selected_composed, &probability_filter);
+                
                 match final_compose {
                     Some(a) => {
                         println!("🟢 ✔ 找到路径  🟢\n{}", display_backtrace_path(a, &mut selected_composed));
@@ -1101,6 +1374,13 @@ fn main() {
                             None => { }
                         }
                     }
+                }
+                let end_time = start_time.elapsed();
+                match end_time {
+                    Ok(t) => {
+                        println!("用时: {}ms", t.as_millis());
+                    }
+                    Err(_) => { },
                 }
             }
         }
