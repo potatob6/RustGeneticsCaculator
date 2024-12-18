@@ -567,7 +567,23 @@ fn one_step_compose_predict(exists_gene: &NoHashSet<GeneGroup>, already_compose_
         unsafe { GLOBAL_SIGN += 1 };
     }
 
+    for j in &mut a2 {
+        // SAFTY: Use static data with single thread is safe. No any data conflition.
+        j.sign = unsafe { GLOBAL_SIGN };
+        j.gene_group.1 = unsafe { GLOBAL_SIGN };
+        unsafe { GLOBAL_SIGN += 1 };
+    }
+
+    for j in &mut a3 {
+        // SAFTY: Use static data with single thread is safe. No any data conflition.
+        j.sign = unsafe { GLOBAL_SIGN };
+        j.gene_group.1 = unsafe { GLOBAL_SIGN };
+        unsafe { GLOBAL_SIGN += 1 };
+    }
+
     evaluate_loss(&mut a1);
+    evaluate_loss(&mut a2);
+    evaluate_loss(&mut a3);
     (a1, a2, a3)
 }
 
