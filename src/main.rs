@@ -1155,14 +1155,17 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &NoHashSet<Co
                         },
                     }
                 }
+
+                step_count += 1;
             }
         } else {
+            let mut has_node = 0usize;
             for j in 0..tmp[i].len() {
                 // Name this node
                 let cloned_gene_group = tmp[i][j].node.gene_group.clone();
                 if !number_mapping.contains_key(&cloned_gene_group) {
-                    number_mapping.insert(tmp[i][j].node.gene_group.clone(), format!("{}-{}", step_count + 1,  j + 1).to_string());
-                    output += &format!("\n{}\t[[{}]]\t%:1/{}\n", blue_bg!(format!("#{}-{}", step_count + 1,  j + 1)), &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
+                    number_mapping.insert(tmp[i][j].node.gene_group.clone(), format!("{}-{}", step_count + 1,  has_node + 1).to_string());
+                    output += &format!("\n{}\t[[{}]]\t%:1/{}\n", blue_bg!(format!("#{}-{}", step_count + 1,  has_node + 1)), &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
                     for genes in &tmp[i][j].node.prev_gene_group {
                         // Find number
                         let node_gene_number = number_mapping.get(genes);
@@ -1175,13 +1178,15 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &NoHashSet<Co
                             },
                         }
                     }
+
+                    has_node += 1;
                 }
             }
+
+            if has_node != 0 {
+                step_count += 1;
+            }
         }
-
-        println!();
-        step_count += 1;
-
     }
 
     output
