@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, cell::RefCell, collections::{hash_map::Keys, HashMap, HashSet}, default, fmt::Display, fs::exists, hash::{BuildHasherDefault, Hash}, hint::assert_unchecked, io::{self, stdin, stdout, Write}, process::{exit, id}, rc::Rc, sync::LazyLock, time::SystemTime, u8, usize, vec};
+use std::{borrow::Borrow, cell::RefCell, collections::{hash_map::Keys, HashMap, HashSet}, default, fmt::Display, fs::exists, hash::{BuildHasherDefault, Hash}, hint::assert_unchecked, io::{self, stdin, stdout, Write}, mem::transmute, process::{exit, id}, rc::Rc, sync::LazyLock, time::SystemTime, u8, usize, vec};
 
 use bigdecimal::{BigDecimal, FromPrimitive};
 use fraction::Fraction;
@@ -1031,6 +1031,28 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &NoHashSet<Co
         node: ComposeResult,
     }
 
+    impl Hash for &BackTraceNode {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            state.write_usize(unsafe { transmute::<&BackTraceNode, usize>(*self) });
+        }
+    }
+
+    impl PartialEq for &BackTraceNode {
+        fn eq(&self, other: &Self) -> bool {
+            unsafe {
+                transmute::<&BackTraceNode, usize>(*self) == transmute::<&BackTraceNode, usize>(other)
+            }
+        }
+    }
+
+    impl Eq for &BackTraceNode {
+
+    }
+
+    impl IsEnabled for &BackTraceNode {
+
+    }
+
 
     let mut leaf = Vec::<(GeneGroup, usize)>::new();
     let mut output = String::new();
@@ -1069,18 +1091,43 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &NoHashSet<Co
         }
     }
 
+    let mut number_mapping: HashMap<GeneGroup, String, BuildHasherDefault<NoHashHasher<GeneGroup>>> = HashMap::with_hasher(
+        nohash::BuildNoHashHasher::default()
+    );
+
     let mut step_count = 0usize;
     for i in (0..tmp.len()).rev() {
         if tmp[i].len() == 1 {
-            output += &format!("{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}", step_count + 1)), &tmp[i][0].node.gene_group, &tmp[i][0].node.probability.1);
+            // Name this node
+            number_mapping.insert(tmp[i][0].node.gene_group.clone(), format!("{}", step_count + 1).to_string());
+            output += &format!("\n{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}", step_count + 1)), &tmp[i][0].node.gene_group, &tmp[i][0].node.probability.1);
             for genes in &tmp[i][0].node.prev_gene_group {
-                output += &format!("\t  {}\n", genes);
+                let node_gene_number = number_mapping.get(genes);
+                match node_gene_number {
+                    Some(n) => {
+                        output += &format!("\t  {}    {}\n", genes, bright_black!(format!("#{}", n)));
+                    },
+                    None => {
+                        output += &format!("\t  {}    {}\n", genes, bright_black!("-"));
+                    },
+                }
             }
         } else {
             for j in 0..tmp[i].len() {
-                output += &format!("{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}-{}", step_count + 1,  j + 1)), &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
+                // Name this node
+                number_mapping.insert(tmp[i][j].node.gene_group.clone(), format!("{}-{}", step_count + 1,  j + 1).to_string());
+                output += &format!("\n{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}-{}", step_count + 1,  j + 1)), &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
                 for genes in &tmp[i][j].node.prev_gene_group {
-                    output += &format!("\t  {}\n", genes);
+                    // Find number
+                    let node_gene_number = number_mapping.get(genes);
+                    match node_gene_number {
+                        Some(n) => {
+                            output += &format!("\t  {}    {}\n", genes, bright_black!(format!("#{}", n)));
+                        },
+                        None => {
+                            output += &format!("\t  {}    {}\n", genes, bright_black!("-"));
+                        },
+                    }
                 }
             }
         }
