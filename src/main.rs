@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, cell::RefCell, collections::{hash_map::Keys, HashMap, HashSet}, default, fmt::Display, fs::exists, hash::{BuildHasherDefault, Hash}, hint::assert_unchecked, io::{self, stdin, stdout, Write}, mem::transmute, process::{exit, id}, rc::Rc, sync::LazyLock, time::SystemTime, u8, usize, vec};
+use std::{borrow::Borrow, cell::RefCell, collections::{hash_map::Keys, HashMap, HashSet}, default, fmt::Display, fs::exists, hash::{BuildHasherDefault, Hash}, hint::assert_unchecked, io::{self, stdin, stdout, Write}, mem::transmute, process::{exit, id}, rc::Rc, sync::LazyLock, thread, time::SystemTime, u8, usize, vec};
 
 use bigdecimal::{BigDecimal, FromPrimitive};
 use fraction::Fraction;
@@ -528,9 +528,36 @@ fn one_step_compose_predict(exists_gene: &NoHashSet<GeneGroup>, already_compose_
 
     let exists_vec = exists_gene.keys().collect::<Vec<&GeneGroup>>();
 
+    let exists_vec_ptr: usize = unsafe { transmute(&exists_vec) };
+    let exists_gene_ptr: usize = unsafe { transmute(exists_gene) };
+    let already_compose_collection_ptr: usize = unsafe { transmute(already_compose_collection) };
+    let selected_collection_ptr: usize = unsafe { transmute(selected_collection) };
+    let probability_ptr: usize = unsafe { transmute(probability) };
+
+    let t3 = thread::spawn(move || {
+        let exists_vec: &Vec<&GeneGroup> = unsafe { transmute(exists_vec_ptr) };
+        let exists_gene: &NoHashSet<GeneGroup> = unsafe { transmute(exists_gene_ptr) };
+        let already_compose_collection: &NoHashSet<ComposeResult> = unsafe { transmute(already_compose_collection_ptr) };
+        let selected_collection: &NoHashSet<ComposeResult> = unsafe { transmute(selected_collection_ptr) };
+        let probability: &BigDecimal = unsafe { transmute(probability_ptr) };
+     
+        select4compose(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection)
+    });
+
+    let t2 = thread::spawn(move || {
+        let exists_vec: &Vec<&GeneGroup> = unsafe { transmute(exists_vec_ptr) };
+        let exists_gene: &NoHashSet<GeneGroup> = unsafe { transmute(exists_gene_ptr) };
+        let already_compose_collection: &NoHashSet<ComposeResult> = unsafe { transmute(already_compose_collection_ptr) };
+        let selected_collection: &NoHashSet<ComposeResult> = unsafe { transmute(selected_collection_ptr) };
+        let probability: &BigDecimal = unsafe { transmute(probability_ptr) };
+     
+        select3compose(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection)
+    });
+
     let mut a1 = select2compose(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection);
-    let mut a2 = select3compose(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection);
-    let mut a3 = select4compose(&exists_vec, exists_gene, already_compose_collection, probability, selected_collection);
+
+    let mut a2 = t2.join().unwrap();
+    let mut a3 = t3.join().unwrap();
 
     // let mut a2 = vec_result_non_exists(&a2, &a1, &already_compose_collection, probability);
     // a1.append(&mut a2);
@@ -559,9 +586,23 @@ fn one_step_compose_predict(exists_gene: &NoHashSet<GeneGroup>, already_compose_
         unsafe { GLOBAL_SIGN += 1 };
     }
 
+    let a2_ptr: usize = unsafe { transmute(&mut a2) };
+    let t1 = thread::spawn(move || {
+        let a2: &mut Vec<ComposeResult> = unsafe { transmute(a2_ptr) };
+        evaluate_loss(a2);
+    });
+
+    let a3_ptr: usize = unsafe { transmute(&mut a3) };
+    let t2 = thread::spawn(move || {
+        let a3: &mut Vec<ComposeResult> = unsafe { transmute(a3_ptr) };
+        evaluate_loss(a3);
+    });
+    
     evaluate_loss(&mut a1);
-    evaluate_loss(&mut a2);
-    evaluate_loss(&mut a3);
+
+    let _ = t1.join();
+    let _ = t2.join();
+    
     (a1, a2, a3)
 }
 
