@@ -4,6 +4,7 @@ use bigdecimal::{BigDecimal, FromPrimitive};
 use fraction::Fraction;
 use nohash::{BuildNoHashHasher, IsEnabled, NoHashHasher};
 
+mod colorfulstring;
 mod fraction;
 
 type NoHashSet<T> = HashMap<T, (), nohash::BuildNoHashHasher<T>>;
@@ -69,7 +70,7 @@ impl Display for GeneGroup {
                 continue;
             }
             if self.0[i] == Gene::X {
-                s += &"X";
+                s += &red!("X");
                 continue;
             }
             if self.0[i] == Gene::H {
@@ -77,7 +78,7 @@ impl Display for GeneGroup {
                 continue;
             }
             if self.0[i] == Gene::W {
-                s += &"W";
+                s += &red!("W");
                 continue;
             }
         }
@@ -208,30 +209,7 @@ impl GeneGroup {
 
     #[inline]
     fn display(&self) -> String {
-        let mut s = String::new();
-        for i in 0..6 {
-            if self.0[i] == Gene::X {
-                s.push('X');
-                continue;
-            }
-            if self.0[i] == Gene::Y {
-                s.push('Y');
-                continue;
-            }
-            if self.0[i] == Gene::G {
-                s.push('G');
-                continue;
-            }
-            if self.0[i] == Gene::H {
-                s.push('H');
-                continue;
-            }
-            if self.0[i] == Gene::W {
-                s.push('W');
-                continue;
-            }
-        }
-        s
+        format!("{:?}", self.0)
     }
 }
 
@@ -1300,6 +1278,13 @@ fn change_probability(probability: BigDecimal) -> Option<BigDecimal> {
     }
 }
 
+#[inline]
+fn vertical_print(gene_vec: &NoHashSet<GeneGroup>) {
+    for g in gene_vec {
+        println!("{}", g.0);
+    }
+}
+
 fn main() {
     // let mut genes_vec: Vec<GeneGroup> = genes!{ "GYYHYY", "GYYYGY", "GYYYYY", "GGGHYX", "XYGHYW", "GYXYXY", "XYHGGY", };
     let mut genes_vec = nohashset!(50);
@@ -1312,7 +1297,7 @@ fn main() {
         println!("\n\n\n\n\n\n\n\n\n\n\n\n🎯 目标基因：{}", display_target());
         print!("🧬 当前基因：");
         for g in &genes_vec {
-            print!("{} ", g.0.display())
+            print!("{} ", g.0)
         }
         println!("\n🚫 概率过滤器: >=1/{}", probability_filter );
         println!("🚫 最长搜索链: <{}", unsafe { SPEARD_LIMIT });
@@ -1323,6 +1308,7 @@ fn main() {
         println!("4. 🔵 清除所有基因");
         println!("5. 🟡 修改搜索链限制");
         println!("6. 🟡 修改概率过滤器");
+        println!("7. 🟠 竖向对比已有基因");
         println!("9. 开始");
         println!("0. 退出");
 
@@ -1363,6 +1349,10 @@ fn main() {
                 Some(r) => r,
                 None => BigDecimal::from_usize(1000).unwrap(),
             }
+        }
+
+        if code == "7" {
+            vertical_print(&genes_vec);
         }
 
         if code == "9" {
