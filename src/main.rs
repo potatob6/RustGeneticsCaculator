@@ -1072,15 +1072,15 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &NoHashSet<Co
     let mut step_count = 0usize;
     for i in (0..tmp.len()).rev() {
         if tmp[i].len() == 1 {
-            output += &format!("#{}  合成{}:  概率：1/{}\n", step_count + 1, &tmp[i][0].node.gene_group, &tmp[i][0].node.probability.1);
+            output += &format!("{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}", step_count + 1)), &tmp[i][0].node.gene_group, &tmp[i][0].node.probability.1);
             for genes in &tmp[i][0].node.prev_gene_group {
-                output += &format!("    {}\n", genes);
+                output += &format!("\t  {}\n", genes);
             }
         } else {
             for j in 0..tmp[i].len() {
-                output += &format!("#{}-{}  合成{}:  概率: 1/{}\n", step_count + 1, j + 1, &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
+                output += &format!("{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}-{}", step_count + 1,  j + 1)), &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
                 for genes in &tmp[i][j].node.prev_gene_group {
-                    output += &format!("    {}\n", genes);
+                    output += &format!("\t  {}\n", genes);
                 }
             }
         }
