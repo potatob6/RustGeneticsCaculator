@@ -1143,29 +1143,8 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &NoHashSet<Co
             let cloned_gene_group = tmp[i][0].node.gene_group.clone();
             if !number_mapping.contains_key(&cloned_gene_group) {
                 number_mapping.insert(tmp[i][0].node.gene_group.clone(), format!("{}", step_count + 1).to_string());
-            }
-            output += &format!("\n{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}", step_count + 1)), &tmp[i][0].node.gene_group, &tmp[i][0].node.probability.1);
-            for genes in &tmp[i][0].node.prev_gene_group {
-                let node_gene_number = number_mapping.get(genes);
-                match node_gene_number {
-                    Some(n) => {
-                        output += &format!("\t  {}    {}\n", genes, bright_black!(format!("#{}", n)));
-                    },
-                    None => {
-                        output += &format!("\t  {}    {}\n", genes, bright_black!("-"));
-                    },
-                }
-            }
-        } else {
-            for j in 0..tmp[i].len() {
-                // Name this node
-                let cloned_gene_group = tmp[i][j].node.gene_group.clone();
-                if !number_mapping.contains_key(&cloned_gene_group) {
-                    number_mapping.insert(tmp[i][j].node.gene_group.clone(), format!("{}-{}", step_count + 1,  j + 1).to_string());
-                }
-                output += &format!("\n{}\t[[{}]]\t%:1/{}\n", bright_blue_bg!(format!("#{}-{}", step_count + 1,  j + 1)), &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
-                for genes in &tmp[i][j].node.prev_gene_group {
-                    // Find number
+                output += &format!("\n{}\t[[{}]]\t%:1/{}\n", blue_bg!(format!("#{}", step_count + 1)), &tmp[i][0].node.gene_group, &tmp[i][0].node.probability.1);
+                for genes in &tmp[i][0].node.prev_gene_group {
                     let node_gene_number = number_mapping.get(genes);
                     match node_gene_number {
                         Some(n) => {
@@ -1174,6 +1153,27 @@ fn display_backtrace_path(result: ComposeResult, selected_compose: &NoHashSet<Co
                         None => {
                             output += &format!("\t  {}    {}\n", genes, bright_black!("-"));
                         },
+                    }
+                }
+            }
+        } else {
+            for j in 0..tmp[i].len() {
+                // Name this node
+                let cloned_gene_group = tmp[i][j].node.gene_group.clone();
+                if !number_mapping.contains_key(&cloned_gene_group) {
+                    number_mapping.insert(tmp[i][j].node.gene_group.clone(), format!("{}-{}", step_count + 1,  j + 1).to_string());
+                    output += &format!("\n{}\t[[{}]]\t%:1/{}\n", blue_bg!(format!("#{}-{}", step_count + 1,  j + 1)), &tmp[i][j].node.gene_group, &tmp[i][j].node.probability.1);
+                    for genes in &tmp[i][j].node.prev_gene_group {
+                        // Find number
+                        let node_gene_number = number_mapping.get(genes);
+                        match node_gene_number {
+                            Some(n) => {
+                                output += &format!("\t  {}    {}\n", genes, bright_black!(format!("#{}", n)));
+                            },
+                            None => {
+                                output += &format!("\t  {}    {}\n", genes, bright_black!("-"));
+                            },
+                        }
                     }
                 }
             }
