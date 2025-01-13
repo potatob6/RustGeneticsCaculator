@@ -1368,14 +1368,14 @@ fn main() {
                 
                 match final_compose {
                     Some(a) => {
-                        println!("🟢 ✔ 找到路径  🟢\n{}", display_backtrace_path(a, &mut selected_composed));
+                        println!("🟢 ✔ 路径存在  🟢\n{}", display_backtrace_path(a, &mut selected_composed));
                     }
                     None => {
                         println!("🔴 ❌ 无路径  🔴");
 
                         match partial_lowest {
                             Some(c) => { 
-                                println!("但是找到一个推荐路径：\n{}", display_backtrace_path(c, &mut selected_composed));
+                                println!("推荐路径：\n{}", display_backtrace_path(c, &mut selected_composed));
                             }
                             None => { }
                         }
